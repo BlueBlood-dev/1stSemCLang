@@ -1,155 +1,194 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include <time.h>
 
-#define  MAX_LENGTH 309
-#define DIV 1000000000
 
-struct uint1024_t {
-    int array[35];
+struct Node {
+    int time;
+    int counter;
+    struct Node *previous;
+    struct Node *next;
 };
 
-void make_inited(struct uint1024_t *x) {
-    for (int i = 0; i < 35; i++)
-        x->array[i] = 0;
-}
+struct List {
+    struct Node *first;
+    struct Node *last;
+};
 
-struct uint1024_t add_op(struct uint1024_t x, struct uint1024_t y) {
-    struct uint1024_t sum;
-    make_inited(&sum);
-    int add = 0;
-    for (int i = 34; i > -1; --i) {
-        unsigned long long int sm = x.array[i] + y.array[i] + add;
-        sum.array[i] = sm % DIV;
-        add = sm / DIV;
+struct timeManager {
+    int end;
+    int max;
+    int begin;
+};
+
+void Push(struct List *list, int time, int counter) {
+    struct Node *element = (struct Node *) malloc(sizeof(struct Node));
+    element->time = time;
+    element->counter = counter;
+    element->previous = NULL;
+    element->next = NULL;
+    if (list->first == NULL)
+        list->last = element;
+    else {
+        element->next = list->first;
+        list->first->previous = element;
     }
-    return sum;
+    list->first = element;
 }
 
-struct uint1024_t subtr_op(struct uint1024_t x, struct uint1024_t y) {
-    struct uint1024_t subtr;
-    int debt = 0;
-    for (int i = 34; i > -1; --i) {
-        if (x.array[i] >= y.array[i] + debt) {
-            subtr.array[i] = x.array[i] - y.array[i] - debt;
-            debt = 0;
+void Pop(struct List *list) {
+    struct Node *element = list->last;
+    if (element != NULL) {
+        if (element->previous != NULL) {
+            list->last = element->previous;
+            list->last->next = NULL;
         } else {
-            subtr.array[i] = x.array[i] + DIV - y.array[i] - debt;
-            debt = 1;
+            list->first = NULL;
+            list->last = NULL;
         }
+        free(element);
     }
-    if (debt) {
-        make_inited(&subtr);
-        printf("WRONG ANSWER!!! THE RESULT OF SUBSTRACTION IS BELOW ZERO\n");
-        return subtr;
+}
+
+
+char *getLine(FILE *in, int counter, int *isEnd) {
+    int symbol = getc(in);
+    char *line;
+    if (symbol == '\n' || symbol == EOF) {
+        line = (char *) malloc(counter + 1);
+        line[counter] = '\0';
+        if (symbol == EOF)
+            *isEnd = 1;
     } else {
-        return subtr;
+        line = getLine(in, counter + 1, isEnd);
+        line[counter] = symbol;
     }
-
+    return line;
 }
 
-struct uint1024_t from_uint(unsigned int x) {
-    struct uint1024_t uintStructure;
-    make_inited(&uintStructure);
-    if (x / DIV != 0) {
-        uintStructure.array[33] = x / DIV;
-        uintStructure.array[34] = x % DIV;
+void parse(char *line, char **requests, char **times, char **statuses) {
+    strtok(line, "[");
+    *times = strtok(NULL, "]");
+    strtok(NULL, "\"");
+    *requests = strtok(NULL, "\"");
+    *statuses = strtok(NULL, " ");
+}
+
+int countTheSecondsInterpreter(char *timings) {
+    if (strcmp(timings, "seconds") == 0) return 1;
+    else if (strcmp(timings, "minutes") == 0) return 60;
+    else if (strcmp(timings, "hours") == 0) return 3600;
+    else if (strcmp(timings, "days") == 0) return 86400;
+    else return 0;
+}
+
+
+int inputPeriod() {
+    printf("Enter the time period which you prefer\n");
+    char *userInput[100];
+    scanf("%99[^\n]", &userInput);
+    char *tmp;
+    int period = 0;
+    int num;
+    for (int i = 0; i > -1; ++i) {
+        tmp = strtok((char *) (i == 0 ? userInput : NULL), " ");
+        if (tmp == NULL) break;
+        num = atoi(tmp);
+        if (num == 0) return 0;
+        tmp = strtok(NULL, " ");
+        if (tmp == NULL) return 0;
+        if (countTheSecondsInterpreter(tmp) == 0) return 0;
+        period += num * countTheSecondsInterpreter(tmp);
+    }
+    return period;
+}
+
+
+int getTime(char *times) {
+    struct tm time;
+    char *tmp = strtok(times, "/: ");
+    // printf("%s\n",tmp);
+    time.tm_mday = atoi(tmp);
+    tmp = strtok(NULL, "/: ");
+    if (strcmp(tmp, "Jan") == 0) time.tm_mon = 0;
+    else if (strcmp(tmp, "Jan") == 0) time.tm_mon = 0;
+    else if (strcmp(tmp, "Feb") == 0) time.tm_mon = 1;
+    else if (strcmp(tmp, "Mar") == 0) time.tm_mon = 2;
+    else if (strcmp(tmp, "Apr") == 0) time.tm_mon = 3;
+    else if (strcmp(tmp, "May") == 0) time.tm_mon = 4;
+    else if (strcmp(tmp, "Jun") == 0) time.tm_mon = 5;
+    else if (strcmp(tmp, "Jul") == 0) time.tm_mon = 6;
+    else if (strcmp(tmp, "Aug") == 0) time.tm_mon = 7;
+    else if (strcmp(tmp, "Sep") == 0) time.tm_mon = 8;
+    else if (strcmp(tmp, "Oct") == 0) time.tm_mon = 9;
+    else if (strcmp(tmp, "Nov") == 0) time.tm_mon = 10;
+    else if (strcmp(tmp, "Dec") == 0) time.tm_mon = 11;
+    tmp = strtok(NULL, "/: ");
+    time.tm_year = atoi(tmp) - 1900;
+    tmp = strtok(NULL, "/: ");
+    time.tm_hour = atoi(tmp);
+    tmp = strtok(NULL, "/: ");
+    time.tm_min = atoi(tmp);
+    tmp = strtok(NULL, "/: ");
+    time.tm_sec = atoi(tmp);
+    return mktime(&time);
+}
+
+void getTheFailedRequestsAndPeriod(int period) {
+    FILE *file = fopen("access_log_Jul95", "rb");
+    if (file == NULL) {
+        printf("file wasn't opened");
     } else {
-        uintStructure.array[34] = x;
-    }
-    return uintStructure;
-}
-
-int was_multiplicified(struct uint1024_t x) {
-    for (int i = 0; i < 35; ++i) {
-        if (x.array[i] != 0)
-            return 0;
-    }
-    return 1;
-}
-
-struct uint1024_t mult_op(struct uint1024_t x, struct uint1024_t y) {
-    struct uint1024_t multiplification = from_uint(0);
-    make_inited(&multiplification);
-    struct uint1024_t decrement = from_uint(1);
-    while (!was_multiplicified(y)) {
-        y = subtr_op(y, decrement);
-        multiplification = add_op(multiplification, x);
-    }
-    return multiplification;
-}
-
-void printf_value(struct uint1024_t x) {
-    int flag = -1;
-    for (int i = 0; i < 35; ++i) {
-        if (x.array[i] != 0) {
-            flag = i;
-            break;
+        char *requests;
+        char *statuses;
+        char *times;
+        int counter = 0;
+        int index = 0;
+        int isEnd = 0;
+        struct List list = {NULL, NULL};
+        struct timeManager manager = {0, 0, 0};
+        printf("failed requests: ...\n");
+        while (!isEnd) {
+            char *line = getLine(file, 0, &isEnd);
+            parse(line, &requests, &times, &statuses);
+            if (times != NULL) {
+                int time = getTime(times);
+                if (atoi(statuses) >= 500 && atoi(statuses) <= 599) {
+                    printf("%s\n", requests);
+                    counter++;
+                }
+                Push(&list, time, index);
+                while (time - list.last->time > period)
+                    Pop(&list);
+                int amount = index - list.last->counter + 1;
+                if (amount > manager.max) {
+                    manager.max = amount;
+                    manager.begin = list.last->time;
+                    manager.end = time;
+                }
+            }
+            free(line);
+            index++;
         }
-    }
-    if (flag == -1) {
-        printf("0\n");
-    } else {
-        printf("%d", x.array[flag]);
-        if (flag + 1 < 35)
-            for (int i = flag + 1; i < 35; ++i)
-                printf("%09d", x.array[i]);
-        printf("\n");
+        printf("The amount of failed requests: %d\n", counter);
+        time_t temp = manager.begin;
+        struct tm *time;
+        time = localtime(&temp);
+        printf("The biggest amount of requests was made from %s", asctime(time));
+        temp = manager.end;
+        time = localtime(&temp);
+        printf(" to %s", asctime(time));
+        fclose(file);
     }
 }
 
-int convert_block_to_int(char array[], int i1) {
-    int number = 0;
-    int pw = 0;
-    if (i1 != 9) {
-        pw = 0;
-        for (int i = 0; pw != i1; ++i) {
-            number += (array[i] - '0') * pow(10, pw++);
-        }
-        return number;
-    }
-    for (int i = 0; pw != strlen(array); ++i) {
-        number += (array[i] - '0') * pow(10, pw++);
-    }
-    return number;
-}
-
-void scanf_value(struct uint1024_t *x) {
-    make_inited(x);
-    char tempArray[MAX_LENGTH];
-    while (1) {
-        scanf("%s", &tempArray);
-        if (tempArray[0] == '0') printf("THE ETERED VALUE IS INVALID\n"); else break;
-    }
-    int length = strlen(tempArray);
-    int blocksToFill;
-    if (length % 9 == 0) blocksToFill = length / 9; else blocksToFill = length / 9 + 1;
-    char blockToconvert[10];
-    int filler = 34;
-    int digits = 0;
-    for (int i = length - 1; i > -1; --i) {
-        if (digits == 9) {
-            blockToconvert[9] = '\0';
-            x->array[filler--] = convert_block_to_int(blockToconvert, digits);
-            blocksToFill--;
-            digits = 0;
-        }
-        blockToconvert[digits++] = tempArray[i];
-    }
-    if (blocksToFill != 0) {
-        x->array[filler] = convert_block_to_int(blockToconvert, digits);
-    }
-}
 
 int main() {
-    struct uint1024_t x, y;
-    scanf_value(&x);
-    scanf_value(&y);
-    printf_value(mult_op(x, y));
-    printf_value(add_op(x, y));
-    printf_value(subtr_op(x, y));
-    unsigned int number;
-    scanf("%u", &number);
-    printf_value(from_uint(number));
-    return 0;
+    int period = inputPeriod();
+    if (period <= 0) {
+        printf("user input is invalid");
+        return -1;
+    }
+    getTheFailedRequestsAndPeriod(period);
 }
