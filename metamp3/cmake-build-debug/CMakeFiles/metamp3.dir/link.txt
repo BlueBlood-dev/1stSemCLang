@@ -1,0 +1,1 @@
+/usr/bin/cc -g -Wl,--enable-auto-import CMakeFiles/metamp3.dir/main.c.o -o metamp3.exe -Wl,--out-implib,libmetamp3.dll.a -Wl,--major-image-version,0,--minor-image-version,0 
