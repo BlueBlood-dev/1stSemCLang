@@ -1,194 +1,189 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <stdlib.h>
+int compressFlag = 0;
 
-
-struct Node {
-    int time;
-    int counter;
-    struct Node *previous;
-    struct Node *next;
-};
-
-struct List {
-    struct Node *first;
-    struct Node *last;
-};
-
-struct timeManager {
-    int end;
-    int max;
-    int begin;
-};
-
-void Push(struct List *list, int time, int counter) {
-    struct Node *element = (struct Node *) malloc(sizeof(struct Node));
-    element->time = time;
-    element->counter = counter;
-    element->previous = NULL;
-    element->next = NULL;
-    if (list->first == NULL)
-        list->last = element;
-    else {
-        element->next = list->first;
-        list->first->previous = element;
-    }
-    list->first = element;
+FILE* createTemplate(char* nameOfFile, int numberOfFiles){
+    
+    FILE* archive = fopen(nameOfFile, "wb");
+    fwrite("ARC", 1, 3, archive);
+    fwrite(&compressFlag, 1, 1, archive);
+    fwrite(&numberOfFiles, sizeof(int), 1, archive);
+    return archive;
 }
 
-void Pop(struct List *list) {
-    struct Node *element = list->last;
-    if (element != NULL) {
-        if (element->previous != NULL) {
-            list->last = element->previous;
-            list->last->next = NULL;
-        } else {
-            list->first = NULL;
-            list->last = NULL;
+int readFileAndWriteToArchive(FILE* archive, char* nameOfFile) {
+    FILE* readFile = fopen(nameOfFile, "rb");
+    if (readFile == NULL) {
+        printf("Error when opening file \"%s\", skipping\n", nameOfFile);
+        return 1;
+    }
+
+    for (unsigned long i = 0; i < strlen(nameOfFile); ++i) {
+        char buffer = *(nameOfFile + i);
+        fwrite(&buffer, 1, 1, archive);
+    }
+
+    char zero = 0x0;
+    unsigned char maxChar = 0xFF;
+    fwrite(&maxChar, 1, 1, archive);
+
+    unsigned long long bytesWritten = 0;
+    long pointInFileForSize = ftell(archive);
+    fwrite(&zero, sizeof(unsigned long long), 1, archive);
+
+    char buffer;
+    while (fread(&buffer, 1, 1, readFile) != 0) {
+        fwrite(&buffer, 1, 1, archive);
+        bytesWritten += 1;
+    }
+
+    long lastPointInFile = ftell(archive);
+    fseek(archive, pointInFileForSize, SEEK_SET);
+    fwrite(&bytesWritten, sizeof(unsigned long long), 1, archive);
+    fseek(archive, lastPointInFile, SEEK_SET);
+
+    return 0;
+}
+
+void extractArchive(char* nameOfArchive){
+    FILE* archive = fopen(nameOfArchive, "rb");
+    char* buffer = calloc(1, 3);
+    fread(buffer, 1, 3, archive);
+    if (strcmp(buffer, "ARC") != 0) {
+        printf("This is not supportable file\n");
+        return;
+    }
+    free(buffer);
+    buffer = calloc(1, 1);
+    fread(buffer, 1, 1, archive); //compression
+    int numberOfFiles = 0;
+    fread(&numberOfFiles, sizeof(int), 1, archive);
+    unsigned long long k;
+    char* bufferName;
+    unsigned char bufferByte;
+    FILE* writingFile;
+    unsigned long long sizeOfFile;
+    for (int i = 0; i < numberOfFiles; ++i) {
+        k = 1;
+        bufferName = calloc(1, 1);
+        *bufferName = '\0';
+        bufferByte = 0;
+        fread(&bufferByte, 1, 1, archive);
+        while (bufferByte != 0xFF) {
+            *(bufferName + k - 1) = bufferByte;
+            fread(&bufferByte, 1, 1, archive);
+            k++;
         }
-        free(element);
+        *(bufferName + k - 1) = '\0';
+        writingFile = fopen((const char*)bufferName, "wb");
+        free(bufferName);
+        sizeOfFile = 0;
+        fread(&sizeOfFile, sizeof(unsigned long long), 1, archive);
+        for (unsigned long long j = 0; j < sizeOfFile; ++j) {
+            fread(&bufferByte, 1, 1, archive);
+            fwrite(&bufferByte, 1, 1, writingFile);
+        }
+        fclose(writingFile);
     }
 }
 
-
-char *getLine(FILE *in, int counter, int *isEnd) {
-    int symbol = getc(in);
-    char *line;
-    if (symbol == '\n' || symbol == EOF) {
-        line = (char *) malloc(counter + 1);
-        line[counter] = '\0';
-        if (symbol == EOF)
-            *isEnd = 1;
-    } else {
-        line = getLine(in, counter + 1, isEnd);
-        line[counter] = symbol;
+void listFiles(char* nameOfArchive){
+    FILE* archive = fopen(nameOfArchive, "rb");
+    char* buffer = calloc(1, 3);
+    fread(buffer, 1, 3, archive);
+    if (strcmp(buffer, "ARC") != 0) {
+        printf("This is not supportable file\n");
+        return;
     }
-    return line;
-}
+    free(buffer);
+    buffer = calloc(1, 1);
+    fread(buffer, 1, 1, archive);
 
-void parse(char *line, char **requests, char **times, char **statuses) {
-    strtok(line, "[");
-    *times = strtok(NULL, "]");
-    strtok(NULL, "\"");
-    *requests = strtok(NULL, "\"");
-    *statuses = strtok(NULL, " ");
-}
+    printf("List of files:\n");
 
-int countTheSecondsInterpreter(char *timings) {
-    if (strcmp(timings, "seconds") == 0) return 1;
-    else if (strcmp(timings, "minutes") == 0) return 60;
-    else if (strcmp(timings, "hours") == 0) return 3600;
-    else if (strcmp(timings, "days") == 0) return 86400;
-    else return 0;
-}
+    int numberOfFiles = 0;
+    fread(&numberOfFiles, sizeof(int), 1, archive);
+    unsigned long long k;
+    char* bufferName;
+    unsigned char bufferByte;
+    unsigned long long sizeOfFile;
 
-
-int inputPeriod() {
-    printf("Enter the time period which you prefer\n");
-    char *userInput[100];
-    scanf("%99[^\n]", &userInput);
-    char *tmp;
-    int period = 0;
-    int num;
-    for (int i = 0; i > -1; ++i) {
-        tmp = strtok((char *) (i == 0 ? userInput : NULL), " ");
-        if (tmp == NULL) break;
-        num = atoi(tmp);
-        if (num == 0) return 0;
-        tmp = strtok(NULL, " ");
-        if (tmp == NULL) return 0;
-        if (countTheSecondsInterpreter(tmp) == 0) return 0;
-        period += num * countTheSecondsInterpreter(tmp);
+    for (int i = 0; i < numberOfFiles; ++i) {
+        k = 1;
+        bufferName = calloc(1, 1);
+        *bufferName = '\0';
+        bufferByte = 0;
+        fread(&bufferByte, 1, 1, archive);
+        while (bufferByte != 0xFF) {
+            *(bufferName + k - 1) = bufferByte;
+            fread(&bufferByte, 1, 1, archive);
+            k++;
+        }
+        *(bufferName + k - 1) = '\0';
+        printf("%s\n", bufferName);
+        free(bufferName);
+        sizeOfFile = 0;
+        fread(&sizeOfFile, sizeof(unsigned long long), 1, archive);
+        fseek(archive, sizeOfFile, SEEK_CUR);
     }
-    return period;
+    printf("Amount of files: %d\n", numberOfFiles);
 }
 
 
-int getTime(char *times) {
-    struct tm time;
-    char *tmp = strtok(times, "/: ");
-    // printf("%s\n",tmp);
-    time.tm_mday = atoi(tmp);
-    tmp = strtok(NULL, "/: ");
-    if (strcmp(tmp, "Jan") == 0) time.tm_mon = 0;
-    else if (strcmp(tmp, "Jan") == 0) time.tm_mon = 0;
-    else if (strcmp(tmp, "Feb") == 0) time.tm_mon = 1;
-    else if (strcmp(tmp, "Mar") == 0) time.tm_mon = 2;
-    else if (strcmp(tmp, "Apr") == 0) time.tm_mon = 3;
-    else if (strcmp(tmp, "May") == 0) time.tm_mon = 4;
-    else if (strcmp(tmp, "Jun") == 0) time.tm_mon = 5;
-    else if (strcmp(tmp, "Jul") == 0) time.tm_mon = 6;
-    else if (strcmp(tmp, "Aug") == 0) time.tm_mon = 7;
-    else if (strcmp(tmp, "Sep") == 0) time.tm_mon = 8;
-    else if (strcmp(tmp, "Oct") == 0) time.tm_mon = 9;
-    else if (strcmp(tmp, "Nov") == 0) time.tm_mon = 10;
-    else if (strcmp(tmp, "Dec") == 0) time.tm_mon = 11;
-    tmp = strtok(NULL, "/: ");
-    time.tm_year = atoi(tmp) - 1900;
-    tmp = strtok(NULL, "/: ");
-    time.tm_hour = atoi(tmp);
-    tmp = strtok(NULL, "/: ");
-    time.tm_min = atoi(tmp);
-    tmp = strtok(NULL, "/: ");
-    time.tm_sec = atoi(tmp);
-    return mktime(&time);
-}
+int main(int argc, char *argv[]) {
 
-void getTheFailedRequestsAndPeriod(int period) {
-    FILE *file = fopen("access_log_Jul95", "rb");
-    if (file == NULL) {
-        printf("file wasn't opened");
-    } else {
-        char *requests;
-        char *statuses;
-        char *times;
-        int counter = 0;
-        int index = 0;
-        int isEnd = 0;
-        struct List list = {NULL, NULL};
-        struct timeManager manager = {0, 0, 0};
-        printf("failed requests: ...\n");
-        while (!isEnd) {
-            char *line = getLine(file, 0, &isEnd);
-            parse(line, &requests, &times, &statuses);
-            if (times != NULL) {
-                int time = getTime(times);
-                if (atoi(statuses) >= 500 && atoi(statuses) <= 599) {
-                    printf("%s\n", requests);
-                    counter++;
-                }
-                Push(&list, time, index);
-                while (time - list.last->time > period)
-                    Pop(&list);
-                int amount = index - list.last->counter + 1;
-                if (amount > manager.max) {
-                    manager.max = amount;
-                    manager.begin = list.last->time;
-                    manager.end = time;
-                }
+    char* nameOfFile = "";
+    unsigned char create = 0;
+    int indexOfFirstFile = 0;
+    unsigned char extract = 0;
+    unsigned char list = 0;
+    unsigned char flag = 0;
+
+    for (int i = 1; i < argc; ++i) {
+        if (flag == 2) {
+            if (strlen(argv[i]) >= 2 && strncmp(argv[i], "--", 2) == 0) {
+                printf("After --create key only names of files are acceptable\n");
+                return 0;
             }
-            free(line);
-            index++;
+            continue;
         }
-        printf("The amount of failed requests: %d\n", counter);
-        time_t temp = manager.begin;
-        struct tm *time;
-        time = localtime(&temp);
-        printf("The biggest amount of requests was made from %s", asctime(time));
-        temp = manager.end;
-        time = localtime(&temp);
-        printf(" to %s", asctime(time));
-        fclose(file);
+        else if (flag) {
+            flag = 0;
+            continue;
+        }
+        if (strlen(argv[i]) > 2 && strncmp(argv[i], "--", 2) == 0) {
+            if (strlen(argv[i]) == 6 && strncmp(argv[i], "--file", 6) == 0) {
+                nameOfFile = argv[i + 1];
+                flag = 1;
+            } else if (strlen(argv[i]) == 8 && strncmp(argv[i], "--create", 8) == 0) {
+                create = 1;
+                indexOfFirstFile = i + 1;
+                flag = 2;
+            } else if (strlen(argv[i]) == 9 && strncmp(argv[i], "--extract", 9) == 0) {
+                extract = 1;
+            } else if (strlen(argv[i]) == 6 && strncmp(argv[i], "--list", 6) == 0) {
+                list = 1;
+            } else {
+                printf("Invalid argument: %s\n", argv[i]);
+                return 0;
+            }
+        }
+
     }
+    if (create) {
+        FILE* archive = createTemplate(nameOfFile, argc - indexOfFirstFile);
+        for (int i = indexOfFirstFile; i < argc; ++i) {
+            readFileAndWriteToArchive(archive, argv[i]);
+        }
+        fclose(archive);
+    }
+    else if (list) {
+        listFiles(nameOfFile);
+    }
+    else if (extract) {
+        extractArchive(nameOfFile);
+    }
+    return 0;
 }
 
-
-int main() {
-    int period = inputPeriod();
-    if (period <= 0) {
-        printf("user input is invalid");
-        return -1;
-    }
-    getTheFailedRequestsAndPeriod(period);
-}
