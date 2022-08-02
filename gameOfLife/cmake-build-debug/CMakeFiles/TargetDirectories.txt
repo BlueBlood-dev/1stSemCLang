@@ -1,3 +1,0 @@
-/cygdrive/d/GitClone/1-sem-clang-labs/gameOfLife/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/cygdrive/d/GitClone/1-sem-clang-labs/gameOfLife/cmake-build-debug/CMakeFiles/edit_cache.dir
-/cygdrive/d/GitClone/1-sem-clang-labs/gameOfLife/cmake-build-debug/CMakeFiles/gameOfLife.dir
